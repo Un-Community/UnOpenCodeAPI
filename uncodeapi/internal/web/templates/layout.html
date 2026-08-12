@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ .Title }}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body data-tab="{{ .ActiveTab }}">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <h2>unoca</h2>
+        <span class="version">v0.1</span>
+      </div>
+      <nav class="nav">
+        <a href="/dashboard/endpoint" class="nav-item {{ if eq .ActiveTab "endpoint" }}active{{ end }}">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          <span>Endpoint</span>
+        </a>
+        <a href="/dashboard/usage" class="nav-item {{ if eq .ActiveTab "usage" }}active{{ end }}">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <span>Usage</span>
+        </a>
+        <a href="/dashboard/logs" class="nav-item {{ if eq .ActiveTab "logs" }}active{{ end }}">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span>System Logs</span>
+        </a>
+        <a href="/dashboard/proxies" class="nav-item {{ if eq .ActiveTab "proxies" }}active{{ end }}">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          <span>Proxy Pools</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="mono text-muted">Port: {{ .Port }}</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      {{ if eq .ActiveTab "endpoint" }}
+      <div class="tab-content">
+        <header class="tab-header">
+          <h1>API Endpoint & Quickstart</h1>
+          <p class="muted">Configured OpenAI-compatible server for OpenCode Zen</p>
+        </header>
+
+        <!-- API Base URL Full Row -->
+        <section class="full-row-card">
+          <div class="card card-full">
+            <div class="label">API Base URL</div>
+            <div class="value mono highlight-url">http://localhost:{{ .Port }}/v1</div>
+          </div>
+        </section>
+
+        <section class="cards">
+          <div class="card">
+            <div class="label">Default Model</div>
+            <div class="value mono">{{ .Model }}</div>
+          </div>
+          <div class="card">
+            <div class="label">API Key</div>
+            <div class="value mono small" id="apiKey">{{ .APIKey }}</div>
+            <button class="copy" data-copy="{{ .APIKey }}">copy key</button>
+          </div>
+        </section>
+
+        <section class="doc-card">
+          <h2>cURL Quickstart</h2>
+          <pre class="code-block"><code># List Available Models
+curl http://localhost:{{ .Port }}/v1/models \
+  -H "Authorization: Bearer {{ .APIKey }}"
+
+# Chat Completion Request
+curl -X POST http://localhost:{{ .Port }}/v1/chat/completions \
+  -H "Authorization: Bearer {{ .APIKey }}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "{{ .Model }}",
+    "messages": [{"role": "user", "content": "Hello OpenCode!"}]
+  }'</code></pre>
+        </section>
+      </div>
+      {{ end }}
+
+      {{ if eq .ActiveTab "usage" }}
+      <div class="tab-content">
+        <header class="tab-header">
+          <h1>Usage & Token Stats</h1>
+          <p class="muted">Real-time usage statistics and token calculations</p>
+        </header>
+
+        <section class="cards" id="statsCards">
+          <div class="card"><div class="label">Total Requests</div><div class="value" id="sTotalReq">0</div></div>
+          <div class="card bad"><div class="label">Errors</div><div class="value" id="sErrors">0</div></div>
+          <div class="card"><div class="label">Input Tokens</div><div class="value mono" id="sInTokens">0</div></div>
+          <div class="card"><div class="label">Output Tokens</div><div class="value mono" id="sOutTokens">0</div></div>
+        </section>
+
+        <section class="cards">
+          <div class="card card-full est-cost-card">
+            <div class="label">Est. Cost</div>
+            <div class="value mono highlight-cost" id="sEstCost">~$0.0000</div>
+            <div class="muted sub-text">Estimated, not actual billing</div>
+          </div>
+        </section>
+
+        <!-- CHARTS SECTION (Smoothed Area Chart on top, Heatmap Contribution below) -->
+        <section class="charts-container">
+          <!-- 1. Smoothed Area Chart (00:00 -> 23:59) -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h2>Today's Request Distribution (00:00 - 23:59)</h2>
+              <span class="muted text-small">Smoothed Area Chart</span>
+            </div>
+            <div class="chart-body">
+              <canvas id="areaChartCanvas" height="180"></canvas>
+            </div>
+          </div>
+
+          <!-- 2. GitHub-style Contribution Heatmap -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h2>Annual Request Heatmap</h2>
+              <span class="muted text-small" id="heatmapTotal">0 requests in past year</span>
+            </div>
+            <div class="chart-body heatmap-body">
+              <div id="heatmapContainer" class="heatmap-grid"></div>
+              <div class="heatmap-legend">
+                <span class="muted text-small">Less</span>
+                <span class="square lvl-0"></span>
+                <span class="square lvl-1"></span>
+                <span class="square lvl-2"></span>
+                <span class="square lvl-3"></span>
+                <span class="square lvl-4"></span>
+                <span class="muted text-small">More</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      {{ end }}
+
+      {{ if eq .ActiveTab "logs" }}
+      <div class="tab-content">
+        <header class="tab-header">
+          <h1>System Logs</h1>
+          <p class="muted">Real-time internal application and proxy logs</p>
+        </header>
+
+        <section>
+          <pre id="logs" class="logs logs-full"></pre>
+        </section>
+      </div>
+      {{ end }}
+
+      {{ if eq .ActiveTab "proxies" }}
+      <div class="tab-content">
+        <header class="tab-header">
+          <h1>Proxy Pools Management</h1>
+          <p class="muted">Scraped free proxies & health monitoring</p>
+        </header>
+
+        <!-- Validation Progress Bar -->
+        <section class="progress-section" id="progressSection">
+          <div class="progress-header">
+            <span class="progress-title" id="progressTitle">Validation Idle</span>
+            <span class="progress-stats mono" id="progressStats">0 / 0 (0%)</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+          </div>
+        </section>
+
+        <section class="cards">
+          <div class="card"><div class="label">Proxies Total</div><div class="value" id="sTotal">—</div></div>
+          <div class="card ok"><div class="label">Alive</div><div class="value" id="sAlive">—</div></div>
+          <div class="card bad"><div class="label">Dead</div><div class="value" id="sDead">—</div></div>
+          <div class="card warn"><div class="label">Unknown</div><div class="value" id="sUnknown">—</div></div>
+        </section>
+
+        <section class="actions">
+          <button id="refresh">Refresh Proxies</button>
+          <button id="validate">Validate All</button>
+        </section>
+
+        <section>
+          <div class="section-head">
+            <h2>Proxy Pool List</h2>
+            <div class="filter-bar">
+              <label>Status:
+                <select id="statusFilter">
+                  <option value="">all</option>
+                  <option value="alive">alive</option>
+                  <option value="slow">slow</option>
+                  <option value="rate_limit">rate_limit</option>
+                  <option value="timeout">timeout</option>
+                  <option value="unknown">unknown</option>
+                  <option value="dead">dead</option>
+                </select>
+              </label>
+              <label>Page size:
+                <select id="pageSize">
+                  <option>25</option>
+                  <option selected>50</option>
+                  <option>100</option>
+                  <option>200</option>
+                  <option>500</option>
+                </select>
+              </label>
+              <span id="proxyCount" class="muted"></span>
+            </div>
+          </div>
+
+          <table id="proxyTable">
+            <thead><tr>
+              <th data-sort="address">Address</th>
+              <th data-sort="protocol">Protocol</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="latency">Latency (ms)</th>
+              <th data-sort="last_check">Last Check</th>
+              <th data-sort="successes">OK</th>
+              <th data-sort="fails">Fail</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+
+          <div class="pager">
+            <button id="firstPage">«</button>
+            <button id="prevPage">‹</button>
+            <span id="pageInfo" class="mono">—</span>
+            <button id="nextPage">›</button>
+            <button id="lastPage">»</button>
+            <input id="gotoPage" type="number" min="1" placeholder="goto" />
+          </div>
+        </section>
+      </div>
+      {{ end }}
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
